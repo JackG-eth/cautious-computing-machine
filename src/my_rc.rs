@@ -125,7 +125,7 @@ impl<T> Drop for MyRc<T>  {
 
 #[cfg(test)]
 pub mod test {
-    use crate::myownrc::MyRc;
+    use super::MyRc;
 
     #[test]
     fn test_basics() {

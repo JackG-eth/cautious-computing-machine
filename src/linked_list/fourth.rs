@@ -156,7 +156,7 @@ impl<T> DoubleEndedIterator for IntoIter<T> {
 }
 #[cfg(test)]
 mod test {
-    use crate::fourth::List;
+    use super::List;
 
     #[test]
 fn into_iter() {

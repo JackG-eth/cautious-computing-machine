@@ -68,7 +68,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 #[cfg(test)]
 mod test {
-    use crate::third::List;
+    use super::List;
 
     #[test]
     fn basics() {

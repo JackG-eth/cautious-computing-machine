@@ -176,13 +176,13 @@ unsafe impl<T> Sync for MyArc<T> {}
 pub mod test {
     use std::{ops::Deref, sync::Mutex, thread};
 
-    use super::MyArc as MyRc;
+    use super::MyArc;
 
 
 
     #[test]
     fn test_multithreaded_ref_counting() {
-        let arc = MyRc::new(Mutex::new(0));
+        let arc = MyArc::new(Mutex::new(0));
 
         let initial_count = arc.get_strong_count();
         assert_eq!(initial_count, 1);
@@ -212,14 +212,14 @@ pub mod test {
 
     #[test]
     fn test_try_unwrap_success() {
-        let rc = MyRc::new(String::from("own me"));
+        let rc = MyArc::new(String::from("own me"));
         let unwrapped = rc.try_unwrap().unwrap_or("test".to_string());
         assert_eq!(unwrapped, "own me");
     }
 
     #[test]
     fn test_try_unwrap_fail() {
-        let rc = MyRc::new(String::from("shared"));
+        let rc = MyArc::new(String::from("shared"));
         let _clone = rc.clone();
         let result = rc.try_unwrap();
         assert!(result.is_err());
@@ -227,7 +227,7 @@ pub mod test {
 
     #[test]
     fn test_get_mut_ref_arc() {
-        let mut rc = MyRc::new(123);
+        let mut rc = MyArc::new(123);
         assert!(rc.get_mut_ref().is_some());
 
         let _clone = rc.clone();
@@ -237,7 +237,7 @@ pub mod test {
 
     #[test]
     fn test_basics() {
-        let my_rc = MyRc::new("bob");
+        let my_rc = MyArc::new("bob");
 
         assert_eq!(my_rc.get_strong_count(), 1);
 
@@ -260,7 +260,7 @@ pub mod test {
         }
 
         {
-            let a = MyRc::new(Tracker("a"));
+            let a = MyArc::new(Tracker("a"));
 
             let b = a.clone();
             let c = b.clone();
@@ -274,7 +274,7 @@ pub mod test {
 
     #[test]
     fn test_get_mut_ref_only_when_unique() {
-        let mut rc = MyRc::new(42);
+        let mut rc = MyArc::new(42);
         assert_eq!(rc.get_strong_count(), 1);
 
         {
@@ -296,55 +296,51 @@ pub mod test {
 
     #[test]
     fn test_deref() {
-        let rc = MyRc::new(String::from("hello"));
+        let rc = MyArc::new(String::from("hello"));
         assert_eq!(rc.len(), 5); // using Deref to String
     }
 
-    use super::{MyArc, MyWeak};
-
-#[test]
-fn test_weak_upgrade_success() {
-    let arc = MyArc::new(42);
-    let weak = arc.downgrade();
-
-    assert_eq!(arc.get_strong_count(), 1);
-    assert_eq!(arc.get_weak_count(), 2); // arc holds 1 implicit weak, and we created another
-
-    let upgraded = weak.upgrade();
-    assert!(upgraded.is_some());
-    assert_eq!(*upgraded.unwrap(), 42);
-}
-
-#[test]
-fn test_weak_upgrade_fails_after_arc_drop() {
-    let weak = {
-        let arc = MyArc::new("hello".to_string());
+    #[test]
+    fn test_weak_upgrade_success() {
+        let arc = MyArc::new(42);
         let weak = arc.downgrade();
-        assert!(weak.upgrade().is_some());
-        weak
-    };
 
-    // All strong references dropped now
-    assert!(weak.upgrade().is_none());
-}
+        assert_eq!(arc.get_strong_count(), 1);
+        assert_eq!(arc.get_weak_count(), 2); // arc holds 1 implicit weak, and we created another
 
-#[test]
-fn test_weak_counts() {
-    let arc = MyArc::new("hi");
-    assert_eq!(arc.get_weak_count(), 1); // internal weak ref
+        let upgraded = weak.upgrade();
+        assert!(upgraded.is_some());
+        assert_eq!(*upgraded.unwrap(), 42);
+    }
 
-    let w1 = arc.downgrade();
-    assert_eq!(arc.get_weak_count(), 2);
+    #[test]
+    fn test_weak_upgrade_fails_after_arc_drop() {
+        let weak = {
+            let arc = MyArc::new("hello".to_string());
+            let weak = arc.downgrade();
+            assert!(weak.upgrade().is_some());
+            weak
+        };
 
-    let w2 = w1.clone();
-    assert_eq!(arc.get_weak_count(), 3);
+        // All strong references dropped now
+        assert!(weak.upgrade().is_none());
+    }
 
-    drop(w1);
-    assert_eq!(arc.get_weak_count(), 2);
+    #[test]
+    fn test_weak_counts() {
+        let arc = MyArc::new("hi");
+        assert_eq!(arc.get_weak_count(), 1); // internal weak ref
 
-    drop(w2);
-    assert_eq!(arc.get_weak_count(), 1); // back to implicit only
-}
+        let w1 = arc.downgrade();
+        assert_eq!(arc.get_weak_count(), 2);
 
+        let w2 = w1.clone();
+        assert_eq!(arc.get_weak_count(), 3);
 
+        drop(w1);
+        assert_eq!(arc.get_weak_count(), 2);
+
+        drop(w2);
+        assert_eq!(arc.get_weak_count(), 1); // back to implicit only
+    }
 }
