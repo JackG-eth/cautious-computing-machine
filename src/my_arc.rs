@@ -1,4 +1,9 @@
-use std::{ops::Deref, ptr::NonNull, rc::Weak, sync::atomic::{fence, AtomicUsize, Ordering}};
+use std::{
+    ops::Deref,
+    ptr::NonNull,
+    rc::Weak,
+    sync::atomic::{AtomicUsize, Ordering, fence},
+};
 
 pub struct InnerArc<T> {
     value: T,
@@ -8,14 +13,13 @@ pub struct InnerArc<T> {
 
 impl<T> InnerArc<T> {
     fn new(value: T) -> Self {
-        InnerArc { 
-            value, 
-            strong: AtomicUsize::new(1), 
+        InnerArc {
+            value,
+            strong: AtomicUsize::new(1),
             weak: AtomicUsize::new(1), // start at 1 because Arc holds a weak ref to itself internally
         }
     }
 }
-
 
 pub struct MyArc<T> {
     ptr: NonNull<InnerArc<T>>,
@@ -32,7 +36,12 @@ impl<T> MyWeak<T> {
             let mut strong_count = inner.strong.load(Ordering::Acquire);
 
             while strong_count != 0 {
-                match inner.strong.compare_exchange(strong_count, strong_count+1, Ordering::AcqRel, Ordering::Acquire)  {
+                match inner.strong.compare_exchange(
+                    strong_count,
+                    strong_count + 1,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                ) {
                     Ok(_) => return Some(MyArc { ptr: self.ptr }),
                     Err(updated) => strong_count = updated,
                 }
@@ -42,49 +51,46 @@ impl<T> MyWeak<T> {
     }
 }
 
-
 impl<T> MyArc<T> {
     fn new(value: T) -> Self {
-        let ptr = unsafe {
-            NonNull::new_unchecked(Box::into_raw(Box::new(InnerArc::new(value))))
-        };
+        let ptr = unsafe { NonNull::new_unchecked(Box::into_raw(Box::new(InnerArc::new(value)))) };
         MyArc { ptr }
     }
 
     fn get_strong_count(&self) -> usize {
         unsafe {
-            (*self.ptr.as_ref()).strong.load(std::sync::atomic::Ordering::SeqCst)
+            (*self.ptr.as_ref())
+                .strong
+                .load(std::sync::atomic::Ordering::SeqCst)
         }
     }
-
 
     fn get_weak_count(&self) -> usize {
         unsafe {
-            (*self.ptr.as_ref()).weak.load(std::sync::atomic::Ordering::SeqCst)
+            (*self.ptr.as_ref())
+                .weak
+                .load(std::sync::atomic::Ordering::SeqCst)
         }
     }
-
 
     // todo might have to check weak as well, although it would have to upgrade?
     fn get_mut_ref(&mut self) -> Option<&mut T> {
         unsafe {
             let inner_ptr = &(*self.ptr.as_ref());
             if inner_ptr.strong.load(std::sync::atomic::Ordering::SeqCst) == 1 {
-                return Some(&mut (*self.ptr.as_mut()).value)
+                return Some(&mut (*self.ptr.as_mut()).value);
             }
             None
         }
     }
 
     fn get_value_ref(&self) -> &T {
-        unsafe {
-            &(*self.ptr.as_ref()).value
-        }
+        unsafe { &(*self.ptr.as_ref()).value }
     }
 
     fn try_unwrap(self) -> Result<T, Self> {
         if self.get_strong_count() == 1 {
-            let unboxed = unsafe {Box::from_raw(self.ptr.as_ptr())};
+            let unboxed = unsafe { Box::from_raw(self.ptr.as_ptr()) };
             let value = unboxed.value;
             std::mem::forget(self); // prevent drop
             Ok(value)
@@ -104,16 +110,15 @@ impl<T> MyArc<T> {
     }
 }
 
-
-
 impl<T> Clone for MyArc<T> {
     fn clone(&self) -> Self {
         unsafe {
-            (*self.ptr.as_ref()).strong.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            (*self.ptr.as_ref())
+                .strong
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
-        Self { ptr: self.ptr}
+        Self { ptr: self.ptr }
     }
-    
 }
 
 impl<T> Clone for MyWeak<T> {
@@ -141,9 +146,7 @@ impl<T> Deref for MyArc<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &(*self.ptr.as_ref()).value
-        }
+        unsafe { &(*self.ptr.as_ref()).value }
     }
 }
 
@@ -151,8 +154,12 @@ impl<T> Drop for MyArc<T> {
     fn drop(&mut self) {
         unsafe {
             let inner = self.ptr.as_ref();
-            if  inner.strong.fetch_sub(1, std::sync::atomic::Ordering::Release) != 1 {
-                return
+            if inner
+                .strong
+                .fetch_sub(1, std::sync::atomic::Ordering::Release)
+                != 1
+            {
+                return;
             }
             drop(Box::from_raw(self.ptr.as_ptr()));
 
@@ -169,16 +176,11 @@ impl<T> Drop for MyArc<T> {
 unsafe impl<T> Send for MyArc<T> {}
 unsafe impl<T> Sync for MyArc<T> {}
 
-
-
-
 #[cfg(test)]
 pub mod test {
     use std::{ops::Deref, sync::Mutex, thread};
 
     use super::MyArc;
-
-
 
     #[test]
     fn test_multithreaded_ref_counting() {
@@ -197,7 +199,6 @@ pub mod test {
                 // Drop happens automatically when arc_clone goes out of scope
             }));
         }
-
 
         for handle in handles {
             handle.join().unwrap();
@@ -234,7 +235,6 @@ pub mod test {
         assert!(rc.get_mut_ref().is_none());
     }
 
-
     #[test]
     fn test_basics() {
         let my_rc = MyArc::new("bob");
@@ -246,10 +246,9 @@ pub mod test {
         assert_eq!(mc_clone.get_strong_count(), 2);
 
         assert_eq!(mc_clone.get_value_ref(), &"bob");
-
     }
 
-        #[test]
+    #[test]
     fn test_drop_behavior() {
         struct Tracker<'a>(&'a str);
 
@@ -271,7 +270,6 @@ pub mod test {
         // You should see "Dropped Tracker(a)" once in output
     }
 
-
     #[test]
     fn test_get_mut_ref_only_when_unique() {
         let mut rc = MyArc::new(42);
@@ -292,7 +290,6 @@ pub mod test {
 
         assert_eq!(rc.get_value_ref(), &100);
     }
-
 
     #[test]
     fn test_deref() {

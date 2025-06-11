@@ -1,10 +1,9 @@
-
 use std::cmp::Ordering;
 use std::fmt;
-use std::hash::{Hasher,Hash};
-use std::ptr::NonNull;
-use std::marker::PhantomData;
 use std::fmt::Debug;
+use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
+use std::ptr::NonNull;
 
 pub struct LinkedList<T> {
     front: Link<T>,
@@ -18,7 +17,7 @@ type Link<T> = Option<NonNull<Node<T>>>;
 struct Node<T> {
     front: Link<T>,
     back: Link<T>,
-    elem: T, 
+    elem: T,
 }
 
 pub struct Iter<'a, T> {
@@ -62,7 +61,7 @@ impl<T> LinkedList<T> {
                 (*old.as_ptr()).front = Some(new);
                 (*new.as_ptr()).back = Some(old);
             } else {
-                // If there's no front, then we're the empty list and need 
+                // If there's no front, then we're the empty list and need
                 // to set the back too.
                 self.back = Some(new);
             }
@@ -85,7 +84,7 @@ impl<T> LinkedList<T> {
                 (*old.as_ptr()).back = Some(new);
                 (*new.as_ptr()).front = Some(old);
             } else {
-                // If there's no back, then we're the empty list and need 
+                // If there's no back, then we're the empty list and need
                 // to set the front too.
                 self.front = Some(new);
             }
@@ -148,27 +147,19 @@ impl<T> LinkedList<T> {
     }
 
     pub fn front(&self) -> Option<&T> {
-        unsafe {
-            self.front.map(|node| &(*node.as_ptr()).elem)
-        }
+        unsafe { self.front.map(|node| &(*node.as_ptr()).elem) }
     }
 
     pub fn front_mut(&mut self) -> Option<&mut T> {
-        unsafe {
-            self.front.map(|node| &mut (*node.as_ptr()).elem)
-        }
+        unsafe { self.front.map(|node| &mut (*node.as_ptr()).elem) }
     }
 
     pub fn back(&self) -> Option<&T> {
-        unsafe {
-            self.back.map(|node| &(*node.as_ptr()).elem)
-        }
+        unsafe { self.back.map(|node| &(*node.as_ptr()).elem) }
     }
 
     pub fn back_mut(&mut self) -> Option<&mut T> {
-        unsafe {
-            self.back.map(|node| &mut (*node.as_ptr()).elem)
-        }
+        unsafe { self.back.map(|node| &mut (*node.as_ptr()).elem) }
     }
 
     pub fn len(&self) -> usize {
@@ -176,8 +167,8 @@ impl<T> LinkedList<T> {
     }
 
     pub fn iter(&self) -> Iter<T> {
-        Iter { 
-            front: self.front, 
+        Iter {
+            front: self.front,
             back: self.back,
             len: self.len,
             _boo: PhantomData,
@@ -185,8 +176,8 @@ impl<T> LinkedList<T> {
     }
 
     pub fn iter_mut(&mut self) -> IterMut<T> {
-        IterMut { 
-            front: self.front, 
+        IterMut {
+            front: self.front,
             back: self.back,
             len: self.len,
             _boo: PhantomData,
@@ -194,9 +185,7 @@ impl<T> LinkedList<T> {
     }
 
     pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter { 
-            list: self
-        }
+        IntoIter { list: self }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -205,7 +194,7 @@ impl<T> LinkedList<T> {
 
     pub fn clear(&mut self) {
         // Oh look it's drop again
-        while let Some(_) = self.pop_front() { }
+        while let Some(_) = self.pop_front() {}
     }
 }
 
@@ -217,7 +206,6 @@ unsafe impl<'a, T: Sync> Sync for Iter<'a, T> {}
 
 unsafe impl<'a, T: Send> Send for IterMut<'a, T> {}
 unsafe impl<'a, T: Sync> Sync for IterMut<'a, T> {}
-
 
 impl<T> Default for LinkedList<T> {
     fn default() -> Self {
@@ -267,7 +255,7 @@ impl<T: PartialEq> PartialEq for LinkedList<T> {
     }
 }
 
-impl<T: Eq> Eq for LinkedList<T> { }
+impl<T: Eq> Eq for LinkedList<T> {}
 
 impl<T: PartialOrd> PartialOrd for LinkedList<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -293,7 +281,7 @@ impl<T: Hash> Hash for LinkedList<T> {
 impl<T> Drop for LinkedList<T> {
     fn drop(&mut self) {
         // Pop until we have to stop
-        while let Some(_) = self.pop_front() { }
+        while let Some(_) = self.pop_front() {}
     }
 }
 
@@ -680,7 +668,8 @@ mod test {
         assert_eq!(format!("{:?}", list), "[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]");
 
         let list: LinkedList<&str> = vec!["just", "one", "test", "more"]
-            .iter().copied()
+            .iter()
+            .copied()
             .collect();
         assert_eq!(format!("{:?}", list), r#"["just", "one", "test", "more"]"#);
     }

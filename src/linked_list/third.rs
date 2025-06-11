@@ -1,5 +1,3 @@
-
-
 use std::rc::Rc;
 
 pub struct List<T> {
@@ -19,14 +17,18 @@ impl<T> List<T> {
     }
 
     pub fn prepend(&self, elem: T) -> List<T> {
-        List { head: Some(Rc::new(Node {
-            elem: elem,
-            next: self.head.clone(),
-        }))}
+        List {
+            head: Some(Rc::new(Node {
+                elem: elem,
+                next: self.head.clone(),
+            })),
+        }
     }
 
     pub fn tail(&self) -> List<T> {
-        List { head: self.head.as_ref().and_then(|node| node.next.clone()) }
+        List {
+            head: self.head.as_ref().and_then(|node| node.next.clone()),
+        }
     }
 
     pub fn head(&self) -> Option<&T> {
@@ -34,7 +36,9 @@ impl<T> List<T> {
     }
 
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter { next: self.head.as_deref() }
+        Iter {
+            next: self.head.as_deref(),
+        }
     }
 }
 

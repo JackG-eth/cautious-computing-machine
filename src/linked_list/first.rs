@@ -1,4 +1,3 @@
-
 use std::mem;
 
 pub struct List {

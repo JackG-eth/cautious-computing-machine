@@ -1,5 +1,3 @@
-
-
 pub struct List<T> {
     head: Link<T>,
 }
@@ -32,13 +30,13 @@ impl<T> List<T> {
             node.elem
         })
     }
-    
+
     // we take as_ref otherwise we will move the value out of the current scope which is not really peeking...
     pub fn peek(&self) -> Option<&T> {
         // we could match but its ugly. the dot operator deels with the indirection for us.
         self.head.as_ref().map(|node| &node.elem)
     }
-    
+
     // converts the internels to a mutable reference
     pub fn peek_mut(&mut self) -> Option<&mut T> {
         self.head.as_mut().map(|node| &mut node.elem)
@@ -49,23 +47,24 @@ impl<T> List<T> {
     }
 
     // rememeber this creates a option that references the inner value
-    // Option<Box<Node> -> Option<&Node> 
-    pub fn iter<'a>(&'a self) -> Iter<'a ,T> {
+    // Option<Box<Node> -> Option<&Node>
+    pub fn iter<'a>(&'a self) -> Iter<'a, T> {
         Iter {
-            next: self.head.as_deref()
+            next: self.head.as_deref(),
         }
     }
-    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T> { 
-        IterMut { next: self.head.as_deref_mut() }
+    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T> {
+        IterMut {
+            next: self.head.as_deref_mut(),
+        }
     }
-    
 }
 
 // take() moves the value out replacing it with None.
 /*
     Manual drop here is important otherwise we might end up with a stack overflow at the end with the number of cascading drops.
 */
-impl<T> Drop for List<T>{
+impl<T> Drop for List<T> {
     fn drop(&mut self) {
         let mut cur_link = self.head.take();
         while let Some(mut boxed_node) = cur_link {
@@ -84,19 +83,19 @@ impl<T> Iterator for IntoIter<T> {
         self.0.pop()
     }
 }
-pub struct Iter<'a,T> {
+pub struct Iter<'a, T> {
     next: Option<&'a Node<T>>,
 }
 
-impl<'a,T> Iterator for Iter<'a,T> {
-    type Item =  &'a T;
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
 
     // as_deref leaves original option in place, creates a new one with a reference to the old one.
     fn next(&mut self) -> Option<Self::Item> {
-       self.next.map(|node| {
-        self.next = node.next.as_deref();
-        &node.elem
-       })
+        self.next.map(|node| {
+            self.next = node.next.as_deref();
+            &node.elem
+        })
     }
 }
 
@@ -107,7 +106,7 @@ pub struct IterMut<'a, T> {
 // we define the method with Iter/IterMut etc with the type.
 // shouldn't rely on the auto complete, understand what you're putting in your code.
 
-impl<'a, T> Iterator for IterMut<'a,T> {
+impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -118,33 +117,32 @@ impl<'a, T> Iterator for IterMut<'a,T> {
     }
 }
 
-
-
 #[cfg(test)]
 mod test {
     use super::List;
 
-  
     #[test]
     fn peek() {
         let mut list = List::new();
         assert_eq!(list.peek(), None);
         assert_eq!(list.peek_mut(), None);
-        list.push(1); list.push(2); list.push(3);
-    
+        list.push(1);
+        list.push(2);
+        list.push(3);
+
         assert_eq!(list.peek(), Some(&3));
         assert_eq!(list.peek_mut(), Some(&mut 3));
-        
+
         // let a = list.peek_mut().unwrap();
         // let b = list.peek_mut().unwrap(); // error: cannot borrow `list` as mutable more than once at a time
-
-        
     }
 
     #[test]
     fn iter() {
         let mut list = List::new();
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.iter();
         assert_eq!(iter.next(), Some(&3));
@@ -156,7 +154,9 @@ mod test {
     #[test]
     fn iter_mut() {
         let mut list = List::new();
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.iter_mut();
         assert_eq!(iter.next(), Some(&mut 3));
@@ -165,13 +165,14 @@ mod test {
         assert_eq!(iter.next(), None);
     }
 
-
     #[test]
     fn into_iter() {
         let mut list = List::new();
         assert_eq!(list.peek(), None);
         assert_eq!(list.peek_mut(), None);
-        list.push(1); list.push(2); list.push(3);
+        list.push(1);
+        list.push(2);
+        list.push(3);
 
         let mut iter = list.into_iter();
         assert_eq!(iter.next(), Some(3));
@@ -179,8 +180,6 @@ mod test {
         assert_eq!(iter.next(), Some(1));
         assert_eq!(iter.next(), None);
     }
-    
-    
 
     #[test]
     fn basics() {

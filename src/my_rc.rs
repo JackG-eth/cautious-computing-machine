@@ -1,20 +1,22 @@
-
 /*
-    counts how many references 
+    counts how many references
     doesnt doesn't drop unless the count == 1 (use atomics for this?)
-    mutability if count == 1? 
+    mutability if count == 1?
 */
 
-use std::{cell::{Cell, RefCell}, ops::{Deref, DerefMut}, ptr::NonNull};
-
+use std::{
+    cell::{Cell, RefCell},
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
 pub struct InnerRc<T> {
     value: T,
-    count: Cell<usize>
+    count: Cell<usize>,
 }
 
 impl<T> InnerRc<T> {
-    pub fn new(value:T) -> Self {
+    pub fn new(value: T) -> Self {
         Self {
             value,
             count: Cell::new(1),
@@ -28,21 +30,17 @@ impl<T> InnerRc<T> {
     pub fn get_ref(&self) -> &T {
         &self.value
     }
-
 }
 
 struct MyRc<T> {
-    ptr: NonNull<InnerRc<T>>
+    ptr: NonNull<InnerRc<T>>,
 }
 
 impl<T> MyRc<T> {
     fn new(value: T) -> Self {
-        let inner_ptr = unsafe {
-            NonNull::new_unchecked(Box::into_raw(Box::new(InnerRc::new(value)))) 
-        };
-        Self {
-            ptr: inner_ptr,
-        }
+        let inner_ptr =
+            unsafe { NonNull::new_unchecked(Box::into_raw(Box::new(InnerRc::new(value)))) };
+        Self { ptr: inner_ptr }
     }
 
     fn try_unwrap(self) -> Result<T, Self> {
@@ -57,18 +55,14 @@ impl<T> MyRc<T> {
     }
 
     fn get_count(&self) -> usize {
-        unsafe {
-            (*self.ptr.as_ptr()).count.get()
-        }
+        unsafe { (*self.ptr.as_ptr()).count.get() }
     }
 
     fn get_value_ref(&self) -> &T {
-        unsafe {
-            &(*self.ptr.as_ptr()).value
-        }
+        unsafe { &(*self.ptr.as_ptr()).value }
     }
 
-    pub fn get_mut_ref(&mut self) -> Option<& mut T> {
+    pub fn get_mut_ref(&mut self) -> Option<&mut T> {
         unsafe {
             let inner = self.ptr.as_ref();
             if inner.count.get() == 1 {
@@ -90,18 +84,15 @@ impl<T> Clone for MyRc<T> {
     }
 }
 
-
 impl<T> Deref for MyRc<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &(*self.ptr.as_ref()).value
-        }
+        unsafe { &(*self.ptr.as_ref()).value }
     }
 }
 
-impl<T> Drop for MyRc<T>  {
+impl<T> Drop for MyRc<T> {
     fn drop(&mut self) {
         unsafe {
             let inner = self.ptr.as_ref();
@@ -113,15 +104,12 @@ impl<T> Drop for MyRc<T>  {
             if inner.count.get() != 1 {
                 inner.count.set(inner.count.get() - 1);
             } else {
-               
                 drop(Box::from_raw(self.ptr.as_ptr()));
                 println!("Dropped MyRc");
             }
         }
     }
 }
-
-
 
 #[cfg(test)]
 pub mod test {
@@ -138,10 +126,9 @@ pub mod test {
         assert_eq!(mc_clone.get_count(), 2);
 
         assert_eq!(mc_clone.get_value_ref(), &"bob");
-
     }
 
-        #[test]
+    #[test]
     fn test_drop_behavior() {
         struct Tracker<'a>(&'a str);
 
@@ -162,7 +149,6 @@ pub mod test {
 
         // You should see "Dropped Tracker(a)" once in output
     }
-
 
     #[test]
     fn test_get_mut_ref_only_when_unique() {
@@ -185,11 +171,9 @@ pub mod test {
         assert_eq!(rc.get_value_ref(), &100);
     }
 
-
     #[test]
     fn test_deref() {
         let rc = MyRc::new(String::from("hello"));
         assert_eq!(rc.len(), 5); // using Deref to String
     }
-
 }
