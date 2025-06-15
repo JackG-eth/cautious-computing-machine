@@ -5,8 +5,8 @@
 */
 
 use std::{
-    cell::{Cell, RefCell},
-    ops::{Deref, DerefMut},
+    cell::{Cell},
+    ops::{Deref},
     ptr::NonNull,
 };
 
@@ -16,7 +16,7 @@ pub struct InnerRc<T> {
 }
 
 impl<T> InnerRc<T> {
-    pub fn new(value: T) -> Self {
+     fn new(value: T) -> Self {
         Self {
             value,
             count: Cell::new(1),
