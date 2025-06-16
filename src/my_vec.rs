@@ -1,5 +1,5 @@
 use std::{
-    alloc::{self, Layout}, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::Add, path::Iter, ptr::{self, NonNull}
+    alloc::{self, Layout}, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::Add, path::Iter, ptr::{self, NonNull}, slice::{from_raw_parts, from_raw_parts_mut}
 };
 
 /*
@@ -55,6 +55,15 @@ impl<T> MyVec<T> {
             Some(self.data.read(index))
         }
     }
+ 
+    // use cast to conver the MaybeUninit into T
+    fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        if index >= self.len {
+            None
+        } else {
+            Some(self.data.read_mut(index))
+        }
+    }
 
     fn get_len(&self) -> usize {
         self.len
@@ -62,6 +71,14 @@ impl<T> MyVec<T> {
 
     fn get_capacity(&self) -> usize {
         self.data.cap
+    }
+
+    fn as_slice(&self) -> &[T] {
+        self.data.slice(self.len)
+    }
+
+    fn as_mut_slice(&mut self) -> &mut [T] {
+        self.data.slice_mut(self.len)
     }
 }
 
@@ -265,12 +282,24 @@ impl<T> RawVec<T> {
         }
     }
 
+    fn read_mut(&mut self, index: usize) -> &mut T {
+        unsafe {&mut *self.ptr.as_ptr().add(index).cast::<T>()}
+    }
+
     fn read_last(&self, len: usize) -> T {
         unsafe { ptr::read((*self.ptr.as_ptr().add(len)).as_ptr()) }
     }
 
     fn read(&self, index: usize) -> T {
         unsafe { ptr::read((*self.ptr.as_ptr().add(index)).as_ptr()) }
+    }
+
+    fn slice(&self, len: usize) -> &[T] {
+        unsafe { from_raw_parts(self.ptr.as_ptr() as *const T, len)}
+    }
+
+    fn slice_mut(&mut self, len: usize) -> &mut[T] {
+        unsafe { from_raw_parts_mut(self.ptr.as_ptr() as *mut T, len)}
     }
 }
 
@@ -405,6 +434,42 @@ mod vec_tests {
 
         let collected: Vec<_> = vec.into_iter().collect();
         assert_eq!(collected, vec![5, 6, 7]);
+    }
+
+    #[test]
+    fn test_get_mut() {
+        let mut vec = MyVec::new();
+        vec.push(5);
+        vec.push(6);
+        vec.push(7);
+
+        if let Some(val) = vec.get_mut(0) {
+            *val += 5;
+        }
+
+        assert_eq!(vec.get(0).unwrap(),10);
+    }
+
+    #[test]
+    fn test_slice() {
+        let mut vec = MyVec::new();
+        vec.push(5);
+        vec.push(6);
+        vec.push(7);
+
+        let vec_slice = vec.as_slice();
+        assert_eq!(vec_slice, &[5,6,7]);
+    }
+
+    #[test]
+    fn test_mut_slice() {
+        let mut vec = MyVec::new();
+        vec.push(5);
+        vec.push(6);
+        vec.push(7);
+
+        let vec_slice = vec.as_mut_slice();
+        assert_eq!(vec_slice, &mut [5,6,7]);
     }
 
 }
