@@ -1,5 +1,5 @@
 use std::{
-    alloc::{self, Layout}, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::Add, path::Iter, ptr::{self, NonNull}, slice::{from_raw_parts, from_raw_parts_mut}
+    alloc::{self, Layout}, collections::btree_map::RangeMut, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::{Add, Index, IndexMut, Range, RangeInclusive}, path::Iter, ptr::{self, NonNull}, slice::{from_raw_parts, from_raw_parts_mut}
 };
 
 /*
@@ -48,13 +48,16 @@ impl<T> MyVec<T> {
         }
     }
 
-    fn get(&self, index: usize) -> Option<T> {
+    fn get(&self, index: usize) -> Option<&T> {
         if index >= self.len {
             None
         } else {
-            Some(self.data.read(index))
+            unsafe {
+                let ptr = self.data.ptr.as_ptr().add(index);
+                Some(&*ptr.cast::<T>())
+            }
         }
-    }
+    }    
  
     // use cast to conver the MaybeUninit into T
     fn get_mut(&mut self, index: usize) -> Option<&mut T> {
@@ -107,6 +110,42 @@ where
             std::mem::forget(val); // prevent double-drop
         }
         new
+    }
+}
+
+impl<T> Index<usize> for MyVec<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("index out of bounds")
+    }
+}
+
+impl<T> IndexMut<usize> for MyVec<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.get_mut(index).expect("index out of bounds")
+    }
+}
+
+impl<T> Index<Range<usize>> for MyVec<T> {
+    type Output = [T];
+
+    fn index(&self, range: Range<usize>) -> &Self::Output {
+        &self.as_slice()[range]
+    }
+}
+
+impl<T> IndexMut<Range<usize>> for MyVec<T> {
+    fn index_mut(&mut self, range: Range<usize>) -> &mut Self::Output {
+        &mut self.as_mut_slice()[range]
+    }
+}
+
+impl<T> Index<RangeInclusive<usize>> for MyVec<T> {
+    type Output = [T];
+
+    fn index(&self, range: RangeInclusive<usize>) -> &Self::Output {
+        &self.as_slice()[range]
     }
 }
 
@@ -338,8 +377,8 @@ mod vec_tests {
         vec.push(10);
         vec.push(20);
 
-        assert_eq!(vec.get(0), Some(10));
-        assert_eq!(vec.get(1), Some(20));
+        assert_eq!(vec.get(0), Some(&10));
+        assert_eq!(vec.get(1), Some(&20));
         assert_eq!(vec.get(2), None); // OOB
     }
 
@@ -379,10 +418,10 @@ mod vec_tests {
 
         let vec2 = vec1.clone();
 
-        assert_eq!(vec1.get(0), Some(5));
-        assert_eq!(vec2.get(0), Some(5));
-        assert_eq!(vec1.get(1), Some(10));
-        assert_eq!(vec2.get(1), Some(10));
+        assert_eq!(vec1.get(0), Some(&5));
+        assert_eq!(vec2.get(0), Some(&5));
+        assert_eq!(vec1.get(1), Some(&10));
+        assert_eq!(vec2.get(1), Some(&10));
     }
 
     #[test]
@@ -447,7 +486,7 @@ mod vec_tests {
             *val += 5;
         }
 
-        assert_eq!(vec.get(0).unwrap(),10);
+        assert_eq!(vec.get(0).unwrap(),&10);
     }
 
     #[test]
@@ -472,4 +511,63 @@ mod vec_tests {
         assert_eq!(vec_slice, &mut [5,6,7]);
     }
 
+    #[test]
+    fn test_index() {
+        let mut vec = MyVec::new();
+        vec.push(5);
+        vec.push(6);
+        vec.push(7);
+
+      
+        let index_slice = vec.index(0..2);
+
+        assert_eq!(index_slice, &[5,6]);
+    }
+
+    #[test]
+    fn test_index_mut() {
+        let mut vec = MyVec::new();
+        vec.push(5);
+        vec.push(6);
+        vec.push(7);
+
+      
+        let index_slice = vec.index_mut(0..2);
+
+        assert_eq!(index_slice, &mut [5,6]);
+    }
+
+    #[test]
+    fn test_index_inclusive() {
+        let mut vec = MyVec::new();
+        vec.push(5);
+        vec.push(6);
+        vec.push(7);
+
+      
+        let index_slice = vec.index(0..=2);
+
+        assert_eq!(index_slice, &[5,6,7]);
+    }
+
+    #[test]
+    fn test_index_and_index_mut() {
+        let mut vec = MyVec::new();
+        vec.push(10);
+        vec.push(20);
+        vec.push(30);
+
+        // Test Index (immutable)
+        assert_eq!(vec[0], 10);
+        assert_eq!(vec[1], 20);
+        assert_eq!(vec[2], 30);
+
+        // Test IndexMut (mutable)
+        vec[1] = 99;
+        assert_eq!(vec[1], 99);
+
+        // Check that other elements are unaffected
+        assert_eq!(vec[0], 10);
+        assert_eq!(vec[2], 30);
+    }
 }
