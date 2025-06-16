@@ -1,7 +1,5 @@
 use std::{
-    alloc::{self, Layout},
-    mem::MaybeUninit,
-    ptr::{self, NonNull},
+    alloc::{self, Layout}, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::Add, path::Iter, ptr::{self, NonNull}
 };
 
 /*
@@ -67,6 +65,7 @@ impl<T> MyVec<T> {
     }
 }
 
+
 impl<T> Drop for MyVec<T> {
     fn drop(&mut self) {
         // Drop each initialized element (in reverse for safety)
@@ -91,6 +90,135 @@ where
             std::mem::forget(val); // prevent double-drop
         }
         new
+    }
+}
+
+pub struct MyVecIter<'a, T> {
+    start: *const T,
+    end: *const T,
+    _marker: PhantomData<&'a T>,
+}
+
+impl<'a, T> Iterator for MyVecIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.end {
+            None
+        } else {
+            let item = unsafe { &*self.start };
+            self.start = unsafe { self.start.add(1) };
+            Some(item)
+        }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a MyVec<T> {
+    type Item = &'a T;
+    type IntoIter = MyVecIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let start = self.data.ptr.as_ptr() as *const T;
+        let end = unsafe { start.add(self.len) };
+
+        MyVecIter {
+            start,
+            end,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+pub struct MutMyVecIter<'a,T> {
+    start: *mut T,
+    end: *mut T,
+    _marker: PhantomData<&'a T>,
+}
+
+impl<'a,T> Iterator for MutMyVecIter<'a,T> {
+    type Item = &'a mut T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start == self.end {
+            None
+        } else {
+            let item = unsafe { self.start.as_mut() };
+            self.start = unsafe{ self.start.add(1) };
+            item
+        }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut MyVec<T> {
+    type Item = &'a mut T;
+
+    type IntoIter = MutMyVecIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let start = self.data.ptr.as_ptr() as *mut T;
+        let end = unsafe {start.add(self.len)};
+        MutMyVecIter {
+            start,
+            end,
+            _marker: PhantomData,
+        }
+    }
+}
+
+pub struct MyVecIntoIntoIter<T> {
+    ptr: *const T,
+    index: usize,
+    len: usize,
+    _buf: RawVec<T>
+}
+
+impl<T> Iterator for MyVecIntoIntoIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index == self.len {
+            None
+        } else {
+            let item = self._buf.read(self.index);
+            self.index = self.index.add(1);
+            
+            Some(item)
+        }
+    }
+}
+
+impl<T> IntoIterator for MyVec<T> {
+    type Item = T;
+    type IntoIter = MyVecIntoIntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        // Prevent MyVec's Drop as we're dropping it with MyVecIntoIntoIter
+        let raw_self = ManuallyDrop::new(self);
+
+        unsafe {
+            // Move out fields manually
+            let data = ptr::read(&raw_self.data);
+            let len = ptr::read(&raw_self.len);
+
+            let ptr = data.ptr.as_ptr() as *const T;
+
+            MyVecIntoIntoIter {
+                ptr,
+                index: 0,
+                len,
+                _buf: data,
+            }
+        }
+    }
+}
+
+impl<T> Drop for MyVecIntoIntoIter<T> {
+    fn drop(&mut self) {
+        for i in self.index..self.len {
+            unsafe {
+                ptr::drop_in_place(self.ptr.add(i) as *mut T);
+            }
+        }
     }
 }
 
@@ -169,6 +297,7 @@ impl<T> Clone for RawVec<T> {
     }
 }
 
+
 #[cfg(test)]
 mod vec_tests {
     use super::*;
@@ -240,4 +369,42 @@ mod vec_tests {
         let mut vec: MyVec<i32> = MyVec::new();
         assert_eq!(vec.pop(), None);
     }
+
+    #[test]
+    fn test_iter() {
+        let mut vec = MyVec::new();
+        vec.push(10);
+        vec.push(20);
+        vec.push(30);
+
+        let collected: Vec<_> = (&vec).into_iter().cloned().collect();
+        assert_eq!(collected, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn test_iter_mut() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        for x in &mut vec {
+            *x *= 2;
+        }
+
+        let collected: Vec<_> = (&vec).into_iter().cloned().collect();
+        assert_eq!(collected, vec![2, 4, 6]);
+    }
+
+    #[test]
+    fn test_into_iter() {
+        let mut vec = MyVec::new();
+        vec.push(5);
+        vec.push(6);
+        vec.push(7);
+
+        let collected: Vec<_> = vec.into_iter().collect();
+        assert_eq!(collected, vec![5, 6, 7]);
+    }
+
 }
