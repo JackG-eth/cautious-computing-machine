@@ -1,5 +1,12 @@
 use std::{
-    alloc::{self, Layout}, collections::btree_map::RangeMut, marker::PhantomData, mem::{ManuallyDrop, MaybeUninit}, ops::{Add, Index, IndexMut, Range, RangeInclusive}, path::Iter, ptr::{self, NonNull}, slice::{from_raw_parts, from_raw_parts_mut}
+    alloc::{self, Layout},
+    collections::btree_map::RangeMut,
+    marker::PhantomData,
+    mem::{ManuallyDrop, MaybeUninit},
+    ops::{Add, Index, IndexMut, Range, RangeInclusive},
+    path::Iter,
+    ptr::{self, NonNull},
+    slice::{from_raw_parts, from_raw_parts_mut},
 };
 
 /*
@@ -57,8 +64,8 @@ impl<T> MyVec<T> {
                 Some(&*ptr.cast::<T>())
             }
         }
-    }    
- 
+    }
+
     // use cast to conver the MaybeUninit into T
     fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         if index >= self.len {
@@ -84,27 +91,25 @@ impl<T> MyVec<T> {
         self.data.slice_mut(self.len)
     }
 
-    fn insert(&mut self, index: usize, value: T)  {
+    fn insert(&mut self, index: usize, value: T) {
         assert!(index <= self.len);
         if self.len == self.data.cap {
             self.data.grow();
-            //write_pos
         }
 
-        self.data.write_pos(index, value,self.len);
-        
-        self.len +=1;
+        self.data.write_pos(index, value, self.len);
+
+        self.len += 1;
     }
 
     fn remove(&mut self, index: usize) -> T {
-        assert!(index <= self.len);
+        assert!(index < self.len);
         let val = self.data.read(index);
         self.data.remove_pos(index, self.len);
-        self.len -=1;
+        self.len -= 1;
         val
     }
 }
-
 
 impl<T> Drop for MyVec<T> {
     fn drop(&mut self) {
@@ -205,13 +210,13 @@ impl<'a, T> IntoIterator for &'a MyVec<T> {
     }
 }
 
-pub struct MutMyVecIter<'a,T> {
+pub struct MutMyVecIter<'a, T> {
     start: *mut T,
     end: *mut T,
     _marker: PhantomData<&'a T>,
 }
 
-impl<'a,T> Iterator for MutMyVecIter<'a,T> {
+impl<'a, T> Iterator for MutMyVecIter<'a, T> {
     type Item = &'a mut T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -219,7 +224,7 @@ impl<'a,T> Iterator for MutMyVecIter<'a,T> {
             None
         } else {
             let item = unsafe { self.start.as_mut() };
-            self.start = unsafe{ self.start.add(1) };
+            self.start = unsafe { self.start.add(1) };
             item
         }
     }
@@ -232,7 +237,7 @@ impl<'a, T> IntoIterator for &'a mut MyVec<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         let start = self.data.ptr.as_ptr() as *mut T;
-        let end = unsafe {start.add(self.len)};
+        let end = unsafe { start.add(self.len) };
         MutMyVecIter {
             start,
             end,
@@ -245,7 +250,7 @@ pub struct MyVecIntoIntoIter<T> {
     ptr: *const T,
     index: usize,
     len: usize,
-    _buf: RawVec<T>
+    _buf: RawVec<T>,
 }
 
 impl<T> Iterator for MyVecIntoIntoIter<T> {
@@ -257,7 +262,7 @@ impl<T> Iterator for MyVecIntoIntoIter<T> {
         } else {
             let item = self._buf.read(self.index);
             self.index = self.index.add(1);
-            
+
             Some(item)
         }
     }
@@ -322,14 +327,12 @@ impl<T> RawVec<T> {
         let old_layout = Layout::array::<MaybeUninit<T>>(self.cap).unwrap();
 
         unsafe {
-            let new_ptr = alloc::realloc(
-                self.ptr.as_ptr() as *mut u8,
-                old_layout,
-                new_layout.size(),
-            ) as *mut MaybeUninit<T>;
+            let new_ptr =
+                alloc::realloc(self.ptr.as_ptr() as *mut u8, old_layout, new_layout.size())
+                    as *mut MaybeUninit<T>;
 
-            self.ptr = NonNull::new(new_ptr)
-                .unwrap_or_else(|| alloc::handle_alloc_error(new_layout));
+            self.ptr =
+                NonNull::new(new_ptr).unwrap_or_else(|| alloc::handle_alloc_error(new_layout));
         }
 
         self.cap = new_cap;
@@ -344,7 +347,11 @@ impl<T> RawVec<T> {
     fn write_pos(&mut self, index: usize, value: T, len: usize) {
         unsafe {
             // so this means copy all the values up the inde
-            ptr::copy(self.ptr.as_ptr().add(index), self.ptr.as_ptr().add(index+1), len-index-1);
+            ptr::copy(
+                self.ptr.as_ptr().add(index),
+                self.ptr.as_ptr().add(index + 1),
+                len - index,
+            );
             self.write(index, value);
         }
     }
@@ -353,14 +360,18 @@ impl<T> RawVec<T> {
     // remove_pos(2,4)
     // [39,40,209,30]
     // [39,40,30,_]
-    fn remove_pos(&mut self, index: usize,len: usize) {
+    fn remove_pos(&mut self, index: usize, len: usize) {
         unsafe {
-            ptr::copy(self.ptr.as_ptr().add(index+1), self.ptr.as_ptr().add(index), len-index-1);
+            ptr::copy(
+                self.ptr.as_ptr().add(index + 1),
+                self.ptr.as_ptr().add(index),
+                len - index - 1,
+            );
         }
     }
- 
+
     fn read_mut(&mut self, index: usize) -> &mut T {
-        unsafe {&mut *self.ptr.as_ptr().add(index).cast::<T>()}
+        unsafe { &mut *self.ptr.as_ptr().add(index).cast::<T>() }
     }
 
     fn read_last(&self, len: usize) -> T {
@@ -372,11 +383,11 @@ impl<T> RawVec<T> {
     }
 
     fn slice(&self, len: usize) -> &[T] {
-        unsafe { from_raw_parts(self.ptr.as_ptr() as *const T, len)}
+        unsafe { from_raw_parts(self.ptr.as_ptr() as *const T, len) }
     }
 
-    fn slice_mut(&mut self, len: usize) -> &mut[T] {
-        unsafe { from_raw_parts_mut(self.ptr.as_ptr() as *mut T, len)}
+    fn slice_mut(&mut self, len: usize) -> &mut [T] {
+        unsafe { from_raw_parts_mut(self.ptr.as_ptr() as *mut T, len) }
     }
 }
 
@@ -514,7 +525,7 @@ mod vec_tests {
             *val += 5;
         }
 
-        assert_eq!(vec.get(0).unwrap(),&10);
+        assert_eq!(vec.get(0).unwrap(), &10);
     }
 
     #[test]
@@ -525,7 +536,7 @@ mod vec_tests {
         vec.push(7);
 
         let vec_slice = vec.as_slice();
-        assert_eq!(vec_slice, &[5,6,7]);
+        assert_eq!(vec_slice, &[5, 6, 7]);
     }
 
     #[test]
@@ -536,7 +547,7 @@ mod vec_tests {
         vec.push(7);
 
         let vec_slice = vec.as_mut_slice();
-        assert_eq!(vec_slice, &mut [5,6,7]);
+        assert_eq!(vec_slice, &mut [5, 6, 7]);
     }
 
     #[test]
@@ -546,10 +557,9 @@ mod vec_tests {
         vec.push(6);
         vec.push(7);
 
-      
         let index_slice = vec.index(0..2);
 
-        assert_eq!(index_slice, &[5,6]);
+        assert_eq!(index_slice, &[5, 6]);
     }
 
     #[test]
@@ -559,10 +569,9 @@ mod vec_tests {
         vec.push(6);
         vec.push(7);
 
-      
         let index_slice = vec.index_mut(0..2);
 
-        assert_eq!(index_slice, &mut [5,6]);
+        assert_eq!(index_slice, &mut [5, 6]);
     }
 
     #[test]
@@ -572,10 +581,9 @@ mod vec_tests {
         vec.push(6);
         vec.push(7);
 
-      
         let index_slice = vec.index(0..=2);
 
-        assert_eq!(index_slice, &[5,6,7]);
+        assert_eq!(index_slice, &[5, 6, 7]);
     }
 
     #[test]
@@ -597,5 +605,89 @@ mod vec_tests {
         // Check that other elements are unaffected
         assert_eq!(vec[0], 10);
         assert_eq!(vec[2], 30);
+    }
+
+    #[test]
+    fn test_insert_middle() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.push(3);
+        vec.insert(1, 2); // Insert 2 between 1 and 3
+
+        assert_eq!(vec.get_len(), 3);
+        assert_eq!(vec.as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn test_insert_at_start() {
+        let mut vec = MyVec::new();
+        vec.push(2);
+        vec.push(3);
+        vec.insert(0, 1); // Insert at the beginning
+
+        assert_eq!(vec.as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn test_insert_at_end() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.push(2);
+        vec.insert(2, 3); // Insert at the end (like push)
+
+        assert_eq!(vec.as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn test_insert_oob() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.insert(2, 99); // Invalid: index > len
+    }
+
+    #[test]
+    fn test_remove_middle() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        let removed = vec.remove(1); // Should remove 2
+        assert_eq!(removed, 2);
+        assert_eq!(vec.as_slice(), &[1, 3]);
+        assert_eq!(vec.get_len(), 2);
+    }
+
+    #[test]
+    fn test_remove_start() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        let removed = vec.remove(0); // Should remove 1
+        assert_eq!(removed, 1);
+        assert_eq!(vec.as_slice(), &[2, 3]);
+    }
+
+    #[test]
+    fn test_remove_end() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.push(2);
+        vec.push(3);
+
+        let removed = vec.remove(2); // Should remove 3
+        assert_eq!(removed, 3);
+        assert_eq!(vec.as_slice(), &[1, 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn test_remove_oob() {
+        let mut vec = MyVec::new();
+        vec.push(1);
+        vec.remove(1); // Invalid: index >= len
     }
 }

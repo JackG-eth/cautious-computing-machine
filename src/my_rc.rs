@@ -4,11 +4,7 @@
     mutability if count == 1?
 */
 
-use std::{
-    cell::{Cell},
-    ops::{Deref},
-    ptr::NonNull,
-};
+use std::{cell::Cell, ops::Deref, ptr::NonNull};
 
 pub struct InnerRc<T> {
     value: T,
@@ -16,7 +12,7 @@ pub struct InnerRc<T> {
 }
 
 impl<T> InnerRc<T> {
-     fn new(value: T) -> Self {
+    fn new(value: T) -> Self {
         Self {
             value,
             count: Cell::new(1),
