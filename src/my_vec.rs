@@ -83,6 +83,26 @@ impl<T> MyVec<T> {
     fn as_mut_slice(&mut self) -> &mut [T] {
         self.data.slice_mut(self.len)
     }
+
+    fn insert(&mut self, index: usize, value: T)  {
+        assert!(index <= self.len);
+        if self.len == self.data.cap {
+            self.data.grow();
+            //write_pos
+        }
+
+        self.data.write_pos(index, value,self.len);
+        
+        self.len +=1;
+    }
+
+    fn remove(&mut self, index: usize) -> T {
+        assert!(index <= self.len);
+        let val = self.data.read(index);
+        self.data.remove_pos(index, self.len);
+        self.len -=1;
+        val
+    }
 }
 
 
@@ -321,6 +341,24 @@ impl<T> RawVec<T> {
         }
     }
 
+    fn write_pos(&mut self, index: usize, value: T, len: usize) {
+        unsafe {
+            // so this means copy all the values up the inde
+            ptr::copy(self.ptr.as_ptr().add(index), self.ptr.as_ptr().add(index+1), len-index-1);
+            self.write(index, value);
+        }
+    }
+
+    // Shifts the array left
+    // remove_pos(2,4)
+    // [39,40,209,30]
+    // [39,40,30,_]
+    fn remove_pos(&mut self, index: usize,len: usize) {
+        unsafe {
+            ptr::copy(self.ptr.as_ptr().add(index+1), self.ptr.as_ptr().add(index), len-index-1);
+        }
+    }
+ 
     fn read_mut(&mut self, index: usize) -> &mut T {
         unsafe {&mut *self.ptr.as_ptr().add(index).cast::<T>()}
     }
@@ -355,16 +393,6 @@ impl<T> Drop for RawVec<T> {
         }
     }
 }
-
-impl<T> Clone for RawVec<T> {
-    fn clone(&self) -> Self {
-        Self {
-            ptr: self.ptr,
-            cap: self.cap,
-        }
-    }
-}
-
 
 #[cfg(test)]
 mod vec_tests {
