@@ -1,22 +1,13 @@
-// Module: raw_deque.rs
 // Purpose: Custom double-ended queue (deque) implementation with low-level raw buffer management.
-// Provides MyDeque<T> with safe(ish) API, custom iterators, and memory management.
 
 use std::{
     alloc::{self, alloc, Layout},
+    collections::VecDeque,
     fmt::Debug,
     marker::PhantomData,
     mem::{ManuallyDrop, MaybeUninit},
     ptr::{self, NonNull},
 };
-
-/*
-    TODO FromIterator
-    TODO IntoIterator/Other impls
-    TODO Ord/PartialOrd
-    TODO Read/Write
-    TODO Send/Sync
-*/
 
 // =====================
 // Struct Definitions
@@ -243,7 +234,6 @@ impl<T> RawVec<T> {
     }
 
     pub fn with_capacity(cap: usize) -> Self {
-        // todo read on MaybUninit again..
         let layout = Layout::array::<MaybeUninit<T>>(cap).unwrap();
 
         let ptr = unsafe {
@@ -463,6 +453,47 @@ impl<T> IntoIterator for MyDeque<T> {
                 cap: raw_self.buf.cap,
                 len: raw_self.len,
                 _buf: buf,
+            }
+        }
+    }
+}
+
+impl<T: Ord> Ord for MyDeque<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let mut self_iter = self.into_iter();
+        let mut other_iter = other.into_iter();
+
+        loop {
+            match (self_iter.next(), other_iter.next()) {
+                (None, None) => return std::cmp::Ordering::Equal,
+                (None, Some(_)) => return std::cmp::Ordering::Less,
+                (Some(_), None) => return std::cmp::Ordering::Greater,
+                (Some(a), Some(b)) => {
+                    let cmp = a.cmp(b);
+                    if cmp != std::cmp::Ordering::Equal {
+                        return cmp;
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for MyDeque<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let mut self_iter = self.into_iter();
+        let mut other_iter = other.into_iter();
+
+        loop {
+            match (self_iter.next(), other_iter.next()) {
+                (None, None) => return Some(std::cmp::Ordering::Equal),
+                (None, Some(_)) => return Some(std::cmp::Ordering::Less),
+                (Some(_), None) => return Some(std::cmp::Ordering::Greater),
+                (Some(a), Some(b)) => match a.partial_cmp(b) {
+                    Some(std::cmp::Ordering::Equal) => continue,
+                    Some(cmp) => return Some(cmp),
+                    None => return None,
+                },
             }
         }
     }
