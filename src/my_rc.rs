@@ -1,9 +1,3 @@
-/*
-    counts how many references
-    doesnt doesn't drop unless the count == 1 (use atomics for this?)
-    mutability if count == 1?
-*/
-
 use std::{cell::Cell, ops::Deref, ptr::NonNull};
 
 pub struct InnerRc<T> {
